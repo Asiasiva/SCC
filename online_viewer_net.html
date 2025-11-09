@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shortcut (Sc • Blue)</title>
+  <meta name="theme-color" content="#1d4ed8" />
+  <style>
+    :root { --primary:#1d4ed8; }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;margin:0;background:#f6f7fb;color:#0f172a}
+    header{background:var(--primary);color:#fff;padding:16px 20px}
+    main{padding:20px;max-width:680px;margin:0 auto}
+    .card{background:#fff;border-radius:16px;box-shadow:0 6px 20px rgba(0,0,0,.08);padding:18px;margin-top:18px}
+    button{border:none;padding:12px 16px;border-radius:12px;font-size:16px;background:var(--primary);color:#fff;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    footer{padding:24px 20px;color:#475569;text-align:center}
+    .icon-preview{width:96px;height:96px;border-radius:20px;overflow:hidden;display:inline-block}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Shortcut</h1>
+    <p style="margin:.25rem 0 0;opacity:.9">Single-file PWA — “Sc” Blue icon</p>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>Install / Add to Home Screen</h2>
+      <p>இந்தப் பக்கத்தை app போல Install செய்யலாம். <b>Install</b> பொத்தானை அழுத்தவும் (Android Chrome/Edge).</p>
+      <p><small>iOS Safari: Share → Add to Home Screen (manifest தேவை இல்லை; பெயர்/ஐகான் Safari பயன் படுத்தும்).</small></p>
+      <div style="display:flex;gap:12px;align-items:center;margin-top:10px">
+        <button id="installBtn" disabled>Install</button>
+        <span id="status" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Icon Preview</h3>
+      <img class="icon-preview" id="iconPreview" alt="Sc Icon"/>
+    </div>
+
+    <div class="card">
+      <h3>Notes</h3>
+      <ul>
+        <li>HTTPS-ல் host செய்யவும் (localhost சாலாது OK).</li>
+        <li>இந்த கோப்பு தானாகவே <i>manifest</i> + <i>service worker</i> உருவாக்கும்.</li>
+        <li>Offline-ல அடிப்படை cache செய்யும்.</li>
+      </ul>
+    </div>
+  </main>
+
+  <footer>Made for you — “Sc” Blue shortcut</footer>
+
+  <script>
+    // 1) Build SVG icons as data URLs (Blue bg + white "Sc")
+    function makeSvgIcon(size){
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+          <rect width="100%" height="100%" rx="${Math.round(size*0.2)}" fill="#1E88E5"/>
+          <text x="50%" y="54%" text-anchor="middle" fill="#FFFFFF"
+            font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
+            font-size="${Math.round(size*0.45)}" font-weight="700" dominant-baseline="middle">Sc</text>
+        </svg>`;
+      return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    }
+    const icon192 = makeSvgIcon(192);
+    const icon512 = makeSvgIcon(512);
+    document.getElementById('iconPreview').src = makeSvgIcon(192);
+
+    // 2) Create a manifest as a data URL and attach to DOM
+    const manifest = {
+      name: "Shortcut App",
+      short_name: "Shortcut",
+      start_url: ".",
+      display: "standalone",
+      background_color: "#ffffff",
+      theme_color: "#1d4ed8",
+      icons: [
+        { src: icon192, sizes: "192x192", type: "image/svg+xml", purpose: "any" },
+        { src: icon512, sizes: "512x512", type: "image/svg+xml", purpose: "any" }
+      ]
+    };
+    const manifestHref = "data:application/manifest+json;base64," + btoa(unescape(encodeURIComponent(JSON.stringify(manifest))));
+    const link = document.createElement('link');
+    link.setAttribute('rel','manifest');
+    link.setAttribute('href', manifestHref);
+    document.head.appendChild(link);
+
+    // 3) Register a generated Service Worker (from a Blob)
+    if ('serviceWorker' in navigator) {
+      const swCode = `
+        self.addEventListener('install', (event) => {
+          event.waitUntil(
+            caches.open('sc-blue-v1').then(cache => cache.addAll(['./']))
+          );
+        });
+        self.addEventListener('activate', (event) => self.clients.claim());
+        self.addEventListener('fetch', (event) => {
+          event.respondWith(
+            caches.match(event.request).then(res => res || fetch(event.request))
+          );
+        });
+      `;
+      const blob = new Blob([swCode], {type:'text/javascript'});
+      const swUrl = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(swUrl).catch(console.warn);
+    }
+
+    // 4) Handle install flow
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('installBtn');
+    const statusEl = document.getElementById('status');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.disabled = false;
+      statusEl.textContent = 'Ready to install!';
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) {
+        statusEl.textContent = 'Install not available yet. Use Chrome on Android or check HTTPS.';
+        return;
+      }
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      statusEl.textContent = outcome === 'accepted' ? 'Installed!' : 'Install dismissed.';
+      deferredPrompt = null;
+      installBtn.disabled = true;
+    });
+
+    window.addEventListener('appinstalled', () => {
+      statusEl.textContent = 'App installed on your device.';
+      installBtn.disabled = true;
+    });
+  </script>
+</body>
+</html>
