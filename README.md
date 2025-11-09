@@ -1,0 +1,2 @@
+# SCC
+Shortcut Creator
